@@ -1,0 +1,9 @@
+data/*
+!data/.gitkeep
+data_fake/
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+mlruns/
+*.pyc
+.DS_Store
