@@ -1,4 +1,4 @@
-# Fraud Graph Drift
+# ChainSentinel
 
 Graph-based fraud detection on the Elliptic Bitcoin dataset, with drift monitoring that warns when the model starts going stale.
 
@@ -7,7 +7,7 @@ Graph-based fraud detection on the Elliptic Bitcoin dataset, with drift monitori
 ## Setup (once)
 
 ```bash
-git clone <your-repo-url> && cd fraud-graph-drift
+git clone <your-repo-url> && cd chainsentinel
 python -m venv .venv
 # Windows: .venv\Scripts\activate     macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
