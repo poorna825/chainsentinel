@@ -2,7 +2,7 @@
 
 Graph-based fraud detection on the Elliptic Bitcoin dataset, with drift monitoring that warns when the model starts going stale.
 
-> Work in progress — currently in **Week 1** of a 10-week learning build.
+> Work in progress — a personal learning project, built incrementally and directly in `src/`.
 
 ## Setup (once)
 
@@ -31,35 +31,35 @@ python tests/make_fake_data.py data_fake
 
 ## Run
 
-```bash
-jupyter notebook notebooks/01_foundations.ipynb
-```
+The core logic lives in `src/` and is built up step by step (data loading, metrics, models, and
+later graph features, GNNs, and drift monitoring). Notebooks under `notebooks/` are used for
+exploration and visualization, not as the primary deliverable.
 
 ## Structure
 
 ```
 data/         raw CSVs (git-ignored)
-notebooks/    one notebook per week
-notes/        weekly notes in my own words
-solutions/    exercise solutions (try first!)
-src/          reusable code: data loading, features, models, drift
-app/          Streamlit dashboard (Week 9)
+notebooks/    exploration/visualization only
+notes/        notes in my own words
+solutions/    legacy exercise solutions from an earlier notebook-curriculum approach
+src/          the real project code: data loading, metrics, models, (later) features, drift
+app/          Streamlit dashboard (later, once the pipeline exists)
 results/      saved charts and tables
 tests/        fake-data generator and tests
 ```
 
 ## Progress
 
-- [ ] Week 1 — Foundations: metrics, imbalance, time split
-- [ ] Week 2 — EDA
-- [ ] Week 3 — Classic ML baselines
-- [ ] Week 4 — Graph features
-- [ ] Week 5 — First GNN (GCN)
-- [ ] Week 6 — GraphSAGE, GAT, hybrid
-- [ ] Week 7 — Drift detection
-- [ ] Week 8 — Explainability (SHAP)
-- [ ] Week 9 — Dashboard
-- [ ] Week 10 — Polish
+- [x] Data loading + time-based train/test split
+- [x] Illicit-class metrics (precision/recall/F1, PR-AUC)
+- [x] Baseline models (logistic regression, random forest)
+- [ ] Graph features
+- [ ] First GNN (GCN)
+- [ ] GraphSAGE, GAT, hybrid models
+- [ ] Drift detection
+- [ ] Explainability (SHAP)
+- [ ] Dashboard
+- [ ] Polish
 
 ## Data source
 
