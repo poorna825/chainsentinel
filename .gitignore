@@ -10,3 +10,4 @@ mlruns/
 *.joblib
 CLAUDE.md
 .claude/
+notes/
