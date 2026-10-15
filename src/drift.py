@@ -47,12 +47,24 @@ def psi(train_values, new_values, buckets=10, epsilon=1e-4):
     return float(np.sum((new_props - train_props) * np.log(new_props / train_props)))
 
 
+def weighted_psi(scores, importances):
+    """Importance-weighted average PSI: a shift in a feature the model relies
+    on heavily should move this more than an equal-sized shift in a feature
+    the model barely uses - unlike median/frac, which treat all features the
+    same regardless of whether the model's predictions actually depend on them.
+    """
+    feats = list(scores)
+    psi_vals = np.array([scores[f] for f in feats])
+    weights = np.array([importances[f] for f in feats])
+    return float(np.sum(psi_vals * weights) / np.sum(weights))
+
+
 def psi_over_time(train_df, full_df, feature_names, time_steps,
-                   moderate_threshold=0.1, major_threshold=0.25):
+                   moderate_threshold=0.1, major_threshold=0.25, importances=None):
     """PSI per time step, each compared against the same fixed train baseline.
 
-    Returns one row per time step with three complementary views, since no
-    single number tells the whole story:
+    Returns one row per time step with complementary views, since no single
+    number tells the whole story:
     - median_psi: the typical feature's drift (robust to a few features that
       always drift by construction, e.g. time-trending aggregated features)
     - max_psi / max_psi_feature: the single worst feature that step
@@ -60,6 +72,9 @@ def psi_over_time(train_df, full_df, feature_names, time_steps,
       moderate (0.1) / major (0.25) rule-of-thumb cutoffs - catches drift
       concentrated in a meaningful subset of features that the median alone
       would hide (e.g. 15/165 features shifting hard while the rest stay calm)
+    - weighted_psi (only if importances is given): drift weighted by how much
+      the model actually relies on each feature, so irrelevant-feature drift
+      doesn't dilute the signal and important-feature drift isn't averaged away
     """
     rows = []
     for step in time_steps:
@@ -67,12 +82,15 @@ def psi_over_time(train_df, full_df, feature_names, time_steps,
         scores = {feat: psi(train_df[feat], step_df[feat]) for feat in feature_names}
         values = np.array(list(scores.values()))
         worst_feat = max(scores, key=scores.get)
-        rows.append({
+        row = {
             "time_step": step,
             "median_psi": float(np.median(values)),
             "max_psi": scores[worst_feat],
             "max_psi_feature": worst_feat,
             "frac_moderate": float(np.mean(values > moderate_threshold)),
             "frac_major": float(np.mean(values > major_threshold)),
-        })
+        }
+        if importances is not None:
+            row["weighted_psi"] = weighted_psi(scores, importances)
+        rows.append(row)
     return rows
