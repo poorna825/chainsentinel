@@ -7,4 +7,6 @@ __pycache__/
 mlruns/
 *.pyc
 .DS_Store
+*.joblib
 CLAUDE.md
+.claude/
