@@ -33,3 +33,14 @@ def train_random_forest(train_df, n_estimators=200, random_state=0):
     )
     model.fit(X_train, y_train)
     return model
+
+
+def feature_importance(model, feature_names, top_n=15):
+    """Top features by mean impurity reduction across the forest's trees.
+
+    A useful first look, not a rigorous explanation: correlated features
+    split credit between them, and the method favors high-variance features.
+    """
+    pairs = list(zip(feature_names, model.feature_importances_))
+    pairs.sort(key=lambda p: p[1], reverse=True)
+    return pairs[:top_n]
