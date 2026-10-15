@@ -5,6 +5,7 @@ Both models use class_weight="balanced": illicit transactions are a small
 minority of the training set, so without this they'd mostly just learn to
 predict licit, like the dumb baseline.
 """
+import joblib
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 
@@ -44,3 +45,13 @@ def feature_importance(model, feature_names, top_n=15):
     pairs = list(zip(feature_names, model.feature_importances_))
     pairs.sort(key=lambda p: p[1], reverse=True)
     return pairs[:top_n]
+
+
+def save_model(model, path):
+    """Serialize a fitted model to disk so it can be reused without retraining."""
+    joblib.dump(model, path)
+
+
+def load_model(path):
+    """Load a model saved by save_model."""
+    return joblib.load(path)
