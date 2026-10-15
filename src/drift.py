@@ -94,3 +94,22 @@ def psi_over_time(train_df, full_df, feature_names, time_steps,
             row["weighted_psi"] = weighted_psi(scores, importances)
         rows.append(row)
     return rows
+
+
+def prediction_drift_over_time(model, train_df, full_df, feature_names, time_steps):
+    """PSI of the model's predicted illicit-probability score per time step,
+    against the score distribution on training data.
+
+    Unlike feature-level drift (165 numbers to reconcile, diluted by features
+    the model barely uses), this collapses everything into one number the
+    model actually produces - and unlike PR-AUC, it needs no ground-truth
+    labels, so it's something that could be monitored continuously in a real
+    deployment where fraud labels often arrive late, if at all.
+    """
+    train_scores = model.predict_proba(train_df[feature_names])[:, 1]
+    rows = []
+    for step in time_steps:
+        step_df = full_df[full_df["time_step"] == step]
+        step_scores = model.predict_proba(step_df[feature_names])[:, 1]
+        rows.append({"time_step": step, "prediction_psi": psi(train_scores, step_scores)})
+    return rows
