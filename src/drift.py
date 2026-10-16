@@ -5,6 +5,8 @@ even without retraining, if the incoming data stops resembling training data.
 """
 import numpy as np
 
+from metrics import pr_auc_over_time
+
 
 def psi(train_values, new_values, buckets=10, epsilon=1e-4):
     """Population Stability Index for one feature.
@@ -112,4 +114,27 @@ def prediction_drift_over_time(model, train_df, full_df, feature_names, time_ste
         step_df = full_df[full_df["time_step"] == step]
         step_scores = model.predict_proba(step_df[feature_names])[:, 1]
         rows.append({"time_step": step, "prediction_psi": psi(train_scores, step_scores)})
+    return rows
+
+
+def monitoring_report(model, train_df, full_df, feature_names, time_steps, importances=None):
+    """One row per time step combining every drift signal plus real performance.
+
+    Not an automated stale/not-stale verdict - we checked in steps 10-12 and
+    none of these signals reliably predicts performance on their own at this
+    sample size. This is the honest alternative: lay out everything a human
+    reviewing the model would want side by side (feature drift, prediction
+    drift, and - when labels exist - actual PR-AUC with its n_illicit, so a
+    thin sample isn't mistaken for a confirmed swing).
+    """
+    drift_rows = {r["time_step"]: r for r in
+                  psi_over_time(train_df, full_df, feature_names, time_steps, importances=importances)}
+    pred_rows = {r["time_step"]: r for r in
+                 prediction_drift_over_time(model, train_df, full_df, feature_names, time_steps)}
+    perf_rows = {r["time_step"]: r for r in pr_auc_over_time(model, full_df, feature_names, time_steps)}
+
+    rows = []
+    for step in time_steps:
+        row = {**drift_rows[step], **pred_rows[step], **perf_rows[step]}
+        rows.append(row)
     return rows
