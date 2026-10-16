@@ -52,6 +52,23 @@ def feature_columns(df):
     return [c for c in df.columns if c.startswith("f")]
 
 
+def add_degree_features(df, edges):
+    """Add in_deg/out_deg/total_deg from the directed transaction graph.
+
+    edges is txId1 -> txId2 (money flow direction), so out_deg counts a
+    transaction's appearances as txId1, in_deg its appearances as txId2.
+    Named without an "f" prefix so feature_columns() keeps ignoring them -
+    callers that want these must ask for them explicitly.
+    """
+    df = df.copy()
+    out_deg = edges["txId1"].value_counts()
+    in_deg = edges["txId2"].value_counts()
+    df["out_deg"] = df["txId"].map(out_deg).fillna(0).astype(int)
+    df["in_deg"] = df["txId"].map(in_deg).fillna(0).astype(int)
+    df["total_deg"] = df["out_deg"] + df["in_deg"]
+    return df
+
+
 def time_split(df, labelled_only=True):
     """Split by time step, never randomly. Random splits leak the future into training."""
     if labelled_only:

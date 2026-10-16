@@ -21,13 +21,19 @@ def train_baseline(train_df):
     return model
 
 
-def train_random_forest(train_df, n_estimators=200, random_state=0):
-    """Fit a random forest on f1..f165, weighted for class imbalance.
+def train_random_forest(train_df, feature_names=None, n_estimators=200, random_state=0):
+    """Fit a random forest, weighted for class imbalance.
+
+    feature_names defaults to f1..f165 (feature_columns(train_df)); pass an
+    explicit list to train on a different feature set (e.g. a subset, or
+    f1..f165 plus extra non-"f"-prefixed columns like graph degree features).
 
     Not hyperparameter-tuned yet - the point is comparing model families
     against the logistic regression baseline, not squeezing out best settings.
     """
-    X_train = train_df[feature_columns(train_df)]
+    if feature_names is None:
+        feature_names = feature_columns(train_df)
+    X_train = train_df[feature_names]
     y_train = train_df["label"]
     model = RandomForestClassifier(
         n_estimators=n_estimators, class_weight="balanced", random_state=random_state
