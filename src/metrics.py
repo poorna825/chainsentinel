@@ -6,6 +6,7 @@ Raw accuracy is misleading here: illicit transactions are a small minority
 predicts "licit" scores high accuracy while catching no fraud at all.
 Use illicit-class precision/recall/F1 instead.
 """
+import numpy as np
 from sklearn.metrics import (
     precision_recall_fscore_support,
     accuracy_score,
@@ -45,6 +46,30 @@ def threshold_table(y_true, y_score, thresholds=(0.1, 0.3, 0.5, 0.7, 0.9)):
         )
         rows.append({"threshold": t, "precision": precision, "recall": recall, "f1": f1})
     return rows
+
+
+def bootstrap_pr_auc_diff(y_true, score_a, score_b, n_boot=1000, random_state=0):
+    """Paired bootstrap on a fixed pair of models' test-set scores: how much
+    does score_b's PR-AUC exceed score_a's, and how much does that difference
+    swing just from which test rows happen to get resampled?
+
+    Paired = the same resampled row indices are used for both scores each
+    draw, so the comparison reflects the two models' predictions on the same
+    simulated test set each time, not independent sampling noise.
+    """
+    y_true = np.asarray(y_true)
+    score_a = np.asarray(score_a)
+    score_b = np.asarray(score_b)
+    rng = np.random.default_rng(random_state)
+    n = len(y_true)
+    diffs = np.empty(n_boot)
+    for i in range(n_boot):
+        idx = rng.integers(0, n, n)
+        diffs[i] = pr_auc(y_true[idx], score_b[idx]) - pr_auc(y_true[idx], score_a[idx])
+    return {
+        "mean_diff": float(diffs.mean()),
+        "ci_95": (float(np.percentile(diffs, 2.5)), float(np.percentile(diffs, 97.5))),
+    }
 
 
 def pr_auc_over_time(model, full_df, feature_names, time_steps):

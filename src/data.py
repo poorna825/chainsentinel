@@ -69,6 +69,33 @@ def add_degree_features(df, edges):
     return df
 
 
+def add_neighbor_pred_features(df, edges, pred_col):
+    """Add neighbor_mean_pred/neighbor_max_pred from a stage-1 prediction
+    column already present on df (collective classification: use a first
+    model's predictions on a node's graph neighbors as features for a second
+    model on that node).
+
+    Neighbors are undirected (a node's neighbors are everyone it shares an
+    edge with, regardless of edge direction) and exclude self-loops. Nodes
+    with no edges get 0/0 rather than NaN. No has_neighbors flag: every
+    transaction in this dataset has at least one edge (checked directly),
+    so that flag would be a constant column with nothing to split on.
+    """
+    pred = df.set_index("txId")[pred_col]
+    nbrs = pd.concat([
+        edges.rename(columns={"txId1": "txId", "txId2": "neighbor"})[["txId", "neighbor"]],
+        edges.rename(columns={"txId2": "txId", "txId1": "neighbor"})[["txId", "neighbor"]],
+    ])
+    nbrs = nbrs[nbrs["txId"] != nbrs["neighbor"]]
+    nbrs["neighbor_pred"] = nbrs["neighbor"].map(pred)
+    agg = nbrs.groupby("txId")["neighbor_pred"].agg(["mean", "max"])
+
+    df = df.copy()
+    df["neighbor_mean_pred"] = df["txId"].map(agg["mean"]).fillna(0)
+    df["neighbor_max_pred"] = df["txId"].map(agg["max"]).fillna(0)
+    return df
+
+
 def time_split(df, labelled_only=True):
     """Split by time step, never randomly. Random splits leak the future into training."""
     if labelled_only:

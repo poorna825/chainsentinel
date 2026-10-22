@@ -6,8 +6,10 @@ minority of the training set, so without this they'd mostly just learn to
 predict licit, like the dumb baseline.
 """
 import joblib
+import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import KFold
 
 from data import feature_columns
 
@@ -40,6 +42,28 @@ def train_random_forest(train_df, feature_names=None, n_estimators=200, random_s
     )
     model.fit(X_train, y_train)
     return model
+
+
+def oof_predictions(train_df, feature_names, n_folds=5, random_state=0):
+    """Out-of-fold predicted illicit probability for every row in train_df.
+
+    Each row is scored by a model fit on the other folds only, so it never
+    saw its own label during training. This matters for collective
+    classification (using a node's prediction as a feature for its graph
+    neighbors): a plain in-sample prediction would let a row's own label
+    leak into a feature derived from its own score.
+    """
+    X = train_df[feature_names].values
+    y = train_df["label"].values
+    oof = np.full(len(train_df), np.nan)
+    kf = KFold(n_splits=n_folds, shuffle=True, random_state=random_state)
+    for train_idx, val_idx in kf.split(X):
+        model = RandomForestClassifier(
+            n_estimators=200, class_weight="balanced", random_state=random_state
+        )
+        model.fit(X[train_idx], y[train_idx])
+        oof[val_idx] = model.predict_proba(X[val_idx])[:, 1]
+    return oof
 
 
 def feature_importance(model, feature_names, top_n=15):
