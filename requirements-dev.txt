@@ -1,0 +1,2 @@
+# Dev-only dependencies (tests, etc.) - not needed to run the notebooks/app.
+pytest==9.1.1
