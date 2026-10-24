@@ -56,6 +56,12 @@ def bootstrap_pr_auc_diff(y_true, score_a, score_b, n_boot=1000, random_state=0)
     Paired = the same resampled row indices are used for both scores each
     draw, so the comparison reflects the two models' predictions on the same
     simulated test set each time, not independent sampling noise.
+
+    If a resample happens to contain no positive rows, pr_auc() (sklearn's
+    average_precision_score) emits a UserWarning and returns 0.0 for that
+    draw rather than crashing or returning NaN - not an issue in practice
+    here since the real test set has thousands of positives, but noted in
+    case this is reused on a much smaller/sparser set.
     """
     y_true = np.asarray(y_true)
     score_a = np.asarray(score_a)
