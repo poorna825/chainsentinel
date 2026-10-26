@@ -117,6 +117,39 @@ def prediction_drift_over_time(model, train_df, full_df, feature_names, time_ste
     return rows
 
 
+def rolling_psi_over_time(model, full_df, feature_names, time_steps, importances, window=3):
+    """Like psi_over_time/prediction_drift_over_time, but each step t is compared
+    against the previous `window` steps (t-window..t-1) instead of the fixed
+    training set. A fixed baseline sits above the "major" cutoff at every step
+    because aggregated features trend with time, so it can't tell gradual
+    trend from a sudden break; a rolling baseline absorbs the trend and should
+    only move when the data changes faster than the window can follow.
+
+    Baselines use all rows of those steps (labelled and unknown), same as the
+    fixed-baseline metrics. Returns one row per time step with median_psi,
+    weighted_psi and prediction_psi.
+    """
+    step_dfs = {s: full_df[full_df["time_step"] == s] for s in
+                range(min(time_steps) - window, max(time_steps) + 1)}
+    step_scores = {s: model.predict_proba(d[feature_names])[:, 1] for s, d in step_dfs.items()}
+
+    rows = []
+    for step in time_steps:
+        base_steps = range(step - window, step)
+        base_df = np.concatenate([step_dfs[s][feature_names].values for s in base_steps])
+        base_idx = {f: i for i, f in enumerate(feature_names)}
+        new_df = step_dfs[step]
+        scores = {f: psi(base_df[:, base_idx[f]], new_df[f]) for f in feature_names}
+        base_scores = np.concatenate([step_scores[s] for s in base_steps])
+        rows.append({
+            "time_step": step,
+            "median_psi": float(np.median(list(scores.values()))),
+            "weighted_psi": weighted_psi(scores, importances),
+            "prediction_psi": psi(base_scores, step_scores[step]),
+        })
+    return rows
+
+
 def monitoring_report(model, train_df, full_df, feature_names, time_steps, importances=None):
     """One row per time step combining every drift signal plus real performance.
 

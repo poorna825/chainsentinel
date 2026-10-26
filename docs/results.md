@@ -94,3 +94,33 @@ leakage-safe collective-classification scheme), neither added real predictive po
 165 anonymized features already in the Elliptic dataset. This project's model gets essentially
 all of its signal from the local and pre-aggregated features already provided - at least for the
 graph features tried so far.
+
+# Rolling-baseline drift
+
+The fixed-baseline PSI in `src/report.py` (every step vs train steps 1-34) sat above the 0.25
+"major" cutoff at every step 35-49, and did not flag the step-43 collapse (PR-AUC 0.89 at step 42
+-> 0.04 at step 43, the known dark-market shutdown). `src/rolling_report.py` tests a rolling
+baseline instead, with the rule pre-registered in its docstring before running: baseline for step
+t = steps t-3..t-1, alarm if a metric exceeds mean + 2*std over steps 35-42, success = alarm at 43
+and none at 35-42.
+
+| metric | threshold | alarms at | result |
+|---|---|---|---|
+| median_psi | 0.059 | none | FAIL |
+| weighted_psi | 0.619 | none | FAIL |
+| prediction_psi | 0.159 | 43 | PASS |
+
+**Overall: pass, but marginal.** `prediction_psi` at step 43 is 0.165 vs a 0.159 threshold; step 40
+reached 0.156. One metric, one event, a few thousandths of margin. Feature-level PSI shows nothing
+at step 43 - the shutdown changed what the model's scores mean more than it changed the inputs.
+The alarm also does not persist: the rolling baseline absorbs the new regime, so steps 44-49 are
+quiet even though PR-AUC stays at 0.01-0.27. It catches the break once; it is not a "still stale"
+indicator.
+
+**Limitations**
+1. The threshold is fit on steps 35-42 and checked on those same steps, so "no false alarms at
+   35-42" is in-sample and weak.
+2. Baselines for steps 35-37 include train steps 32-34, where the model's scores are in-sample
+   (overconfident), which may inflate `prediction_psi` there.
+
+Plot: `results/rolling_psi.png`. Data: `results/rolling_report.csv`.

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from drift import psi, psi_over_time
+from drift import psi, psi_over_time, rolling_psi_over_time
 
 
 # ---------- psi ----------
@@ -105,3 +105,76 @@ def test_psi_over_time_baseline_is_fixed_across_steps():
     rows = psi_over_time(train_df, full_df, ["f1", "f2", "f3"], [10, 20])
     assert rows[0]["median_psi"] == pytest.approx(rows[1]["median_psi"])
     assert rows[0]["max_psi"] == pytest.approx(rows[1]["max_psi"])
+
+
+# ---------- rolling_psi_over_time ----------
+
+class FakeModel:
+    """Score is a smooth function of f1 alone, so prediction drift tracks f1 drift."""
+    def predict_proba(self, X):
+        p = 1 / (1 + np.exp(-(X["f1"].values - 5)))
+        return np.column_stack([1 - p, p])
+
+
+def make_steps(f1_by_step):
+    """One time step per dict entry; f2 duplicates f1 so median/weighted PSI equal f1's PSI."""
+    return pd.concat([make_time_df(v, v, v, step) for step, v in f1_by_step.items()])
+
+
+IMPORTANCES = {"f1": 1.0, "f2": 1.0}
+
+
+def test_rolling_baseline_is_exactly_previous_window_steps():
+    low, high = np.linspace(0, 1, 40), np.linspace(10, 11, 40)
+    # step 3 with window=2 must be compared against steps 1+2 (low+high), not
+    # 2+3 (which would be ~0 PSI, since step 3 == step 2) or anything else
+    full_df = make_steps({1: low, 2: high, 3: high})
+
+    row = rolling_psi_over_time(FakeModel(), full_df, ["f1", "f2"], [3], IMPORTANCES, window=2)[0]
+
+    expected = psi(np.concatenate([low, high]), high)
+    assert expected > 0.1  # sanity: the setup really separates the right window from the wrong one
+    assert row["median_psi"] == pytest.approx(expected)
+    assert row["weighted_psi"] == pytest.approx(expected)
+
+    scores = lambda v: FakeModel().predict_proba(pd.DataFrame({"f1": v}))[:, 1]
+    expected_pred = psi(np.concatenate([scores(low), scores(high)]), scores(high))
+    assert row["prediction_psi"] == pytest.approx(expected_pred)
+
+
+def test_rolling_identical_consecutive_steps_is_zero():
+    same = np.linspace(0, 1, 40)
+    full_df = make_steps({s: same for s in range(1, 7)})
+
+    rows = rolling_psi_over_time(FakeModel(), full_df, ["f1", "f2"], [4, 5, 6], IMPORTANCES, window=3)
+
+    for r in rows:
+        assert r["median_psi"] == pytest.approx(0.0, abs=1e-9)
+        assert r["weighted_psi"] == pytest.approx(0.0, abs=1e-9)
+        assert r["prediction_psi"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_rolling_persistent_shift_spikes_only_the_step_it_happens():
+    # level shift at step 6 that persists. window=1: step 6 is compared with
+    # calm step 5 (spike); step 7 is compared with step 6, which is already
+    # shifted, so it is calm again. (Wider windows decay over `window` steps
+    # instead of dropping straight back - that is what absorbing a trend means.)
+    calm, shifted = np.linspace(0, 1, 40), np.linspace(10, 11, 40)
+    full_df = make_steps({1: calm, 2: calm, 3: calm, 4: calm, 5: calm,
+                          6: shifted, 7: shifted, 8: shifted})
+
+    rows = rolling_psi_over_time(FakeModel(), full_df, ["f1", "f2"], [2, 3, 4, 5, 6, 7, 8],
+                                 IMPORTANCES, window=1)
+    by_step = {r["time_step"]: r for r in rows}
+
+    for metric in ("median_psi", "weighted_psi", "prediction_psi"):
+        assert by_step[6][metric] > 1.0
+        for step in (2, 3, 4, 5, 7, 8):
+            assert by_step[step][metric] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_rolling_returns_one_row_per_requested_step():
+    same = np.linspace(0, 1, 40)
+    full_df = make_steps({s: same for s in range(1, 6)})
+    rows = rolling_psi_over_time(FakeModel(), full_df, ["f1", "f2"], [4, 5], IMPORTANCES, window=3)
+    assert [r["time_step"] for r in rows] == [4, 5]
